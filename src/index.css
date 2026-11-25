@@ -1,0 +1,147 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+:root {
+  --surface-page: #f8fafc;
+  --surface-card: #ffffff;
+  --ink-primary: #0f172a;
+  --ink-secondary: #475569;
+  --border-subtle: #e2e8f0;
+  --status-open: #4e8c5f;
+  --status-minat: #d6ae48;
+  --status-booking: #cc733c;
+  --status-sp3k: #30548e;
+  --status-akad: #6e518a;
+  --status-reject: #b94b50;
+}
+
+html,
+body {
+  font-family: var(--font-sans);
+  background-color: var(--surface-page);
+  color: var(--ink-primary);
+}
+
+/* Subtle architectural drafting grid for the siteplan viewport */
+.blueprint-stage {
+  background-color: #f8fafc;
+  background-image:
+    linear-gradient(to right, rgba(15, 23, 42, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.045) 1px, transparent 1px),
+    linear-gradient(to right, rgba(15, 23, 42, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.02) 1px, transparent 1px);
+  background-size: 96px 96px, 96px 96px, 24px 24px, 24px 24px;
+}
+
+@keyframes plot-search-pulse {
+  0% {
+    stroke-opacity: 1;
+    stroke-width: 4.5;
+  }
+  50% {
+    stroke-opacity: 0.35;
+    stroke-width: 8.5;
+  }
+  100% {
+    stroke-opacity: 1;
+    stroke-width: 4.5;
+  }
+}
+
+.plot-pulse-ring {
+  animation: plot-search-pulse 1.15s ease-in-out infinite;
+}
+
+@keyframes sheet-slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-sheet-up {
+  animation: sheet-slide-up 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Clean custom scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Dedicated A4 Landscape Vector Print Sheet Rules */
+@page {
+  size: A4 landscape;
+  margin: 10mm;
+}
+
+@media screen {
+  .print-only-container {
+    display: none !important;
+  }
+}
+
+@media print {
+  html,
+  body {
+    width: auto !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only-container {
+    display: block !important;
+    width: 100% !important;
+    background: #ffffff !important;
+  }
+
+  .print-sheet {
+    width: 277mm;
+    height: 188mm;
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0 auto;
+    background: #ffffff !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    break-after: page;
+    page-break-after: always;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    overflow: hidden;
+  }
+
+  .print-sheet:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}
