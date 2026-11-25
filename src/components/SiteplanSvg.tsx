@@ -14,6 +14,8 @@ interface SiteplanSvgProps {
   selectedUnitId?: string | null;
   highlightedUnitId?: string | null;
   activeStatusFilters?: KavlingStatus[];
+  /** True vector camera viewBox override (keeps SVG 100% razor-sharp on iOS Safari at any zoom!) */
+  customViewBox?: { x: number; y: number; width: number; height: number };
   onSelectUnit?: (unit: KavlingUnit) => void;
   className?: string;
 }
@@ -488,6 +490,7 @@ export const SiteplanSvg = memo(function SiteplanSvg({
   selectedUnitId = null,
   highlightedUnitId = null,
   activeStatusFilters = [],
+  customViewBox,
   onSelectUnit,
   className = '',
 }: SiteplanSvgProps) {
@@ -496,6 +499,7 @@ export const SiteplanSvg = memo(function SiteplanSvg({
   const hasFilter = isInteractive && activeStatusFilters.length > 0;
   const { width, height } = project.viewBox;
   const { decoration } = project;
+  const vb = customViewBox ?? { x: 0, y: 0, width, height };
 
   const siteTransform = decoration.siteRotation
     ? `translate(${decoration.siteRotation.offsetX ?? 0} ${decoration.siteRotation.offsetY ?? 0}) rotate(${decoration.siteRotation.angleDeg} ${decoration.siteRotation.cx} ${decoration.siteRotation.cy})`
@@ -513,7 +517,8 @@ export const SiteplanSvg = memo(function SiteplanSvg({
 
   return (
     <svg
-      viewBox={`0 0 ${width} ${height}`}
+      viewBox={`${vb.x} ${vb.y} ${vb.width} ${vb.height}`}
+      preserveAspectRatio="xMidYMid meet"
       className={`block select-none ${className}`}
       role="img"
       aria-label={`Peta Siteplan ${project.name}`}

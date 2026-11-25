@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FileDown,
   Filter,
+  Maximize2,
+  Minimize2,
   Printer,
   RotateCcw,
   Search,
@@ -40,8 +42,18 @@ interface SiteplanViewerProps {
   onExportAllPdf: () => void;
 }
 
-const MIN_ZOOM = 0.75;
-const MAX_ZOOM = 2.8;
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 4;
+
+interface CameraState {
+  cx: number;
+  cy: number;
+  zoom: number;
+}
+
+function clamp(val: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, val));
+}
 
 export function SiteplanViewer({
   projects,
@@ -58,30 +70,106 @@ export function SiteplanViewer({
   const activeProject =
     projects.find((p) => p.id === activeProjectId) ?? projects[0];
 
+  const projW = activeProject.viewBox.width;
+  const projH = activeProject.viewBox.height;
+
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [highlightedUnitId, setHighlightedUnitId] = useState<string | null>(null);
   const [activeStatusFilters, setActiveStatusFilters] = useState<KavlingStatus[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Pan & Zoom state
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
+  // True SVG viewBox camera state (zero CSS scale blur on iOS Safari!)
+  const [camera, setCamera] = useState<CameraState>({
+    cx: projW / 2,
+    cy: projH / 2,
+    zoom: 1,
+  });
   const [isDragging, setIsDragging] = useState(false);
 
+  // Measure map viewport container so SVG viewBox matches exact pixel aspect ratio (full-bleed Retina sharp!)
   const stageRef = useRef<HTMLDivElement | null>(null);
-  const dragStateRef = useRef<{
+  const [stageSize, setStageSize] = useState({ width: 920, height: 560 });
+
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const updateSize = () => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        setStageSize({ width: rect.width, height: rect.height });
+      }
+    };
+    updateSize();
+    const ro = new ResizeObserver(updateSize);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [isFullscreen]);
+
+  // Base viewBox dimensions that fit the entire project blueprint cleanly inside current stage aspect ratio
+  const baseViewSize = useMemo(() => {
+    const stageAspect = stageSize.width / Math.max(1, stageSize.height);
+    const projAspect = projW / projH;
+    if (stageAspect >= projAspect) {
+      return { width: projH * stageAspect, height: projH };
+    }
+    return { width: projW, height: projW / stageAspect };
+  }, [projH, projW, stageSize.height, stageSize.width]);
+
+  // Clamp camera center so user can pan across the whole blueprint without losing it off-screen
+  const clampCamera = useCallback(
+    (next: CameraState): CameraState => {
+      const z = clamp(Number(next.zoom.toFixed(2)), MIN_ZOOM, MAX_ZOOM);
+      if (z <= 1.01) {
+        return { cx: projW / 2, cy: projH / 2, zoom: 1 };
+      }
+      const vbW = baseViewSize.width / z;
+      const vbH = baseViewSize.height / z;
+      const maxOffsetX = Math.max(80, (projW - vbW * 0.45) / 2);
+      const maxOffsetY = Math.max(80, (projH - vbH * 0.45) / 2);
+      return {
+        cx: clamp(next.cx, projW / 2 - maxOffsetX, projW / 2 + maxOffsetX),
+        cy: clamp(next.cy, projH / 2 - maxOffsetY, projH / 2 + maxOffsetY),
+        zoom: z,
+      };
+    },
+    [baseViewSize.height, baseViewSize.width, projH, projW]
+  );
+
+  // Active SVG viewBox derived purely from camera state
+  const customViewBox = useMemo(() => {
+    const vbW = baseViewSize.width / camera.zoom;
+    const vbH = baseViewSize.height / camera.zoom;
+    return {
+      x: camera.cx - vbW / 2,
+      y: camera.cy - vbH / 2,
+      width: vbW,
+      height: vbH,
+    };
+  }, [baseViewSize.height, baseViewSize.width, camera.cx, camera.cy, camera.zoom]);
+
+  const cameraRef = useRef(camera);
+  cameraRef.current = camera;
+  const viewBoxRef = useRef(customViewBox);
+  viewBoxRef.current = customViewBox;
+  const stageSizeRef = useRef(stageSize);
+  stageSizeRef.current = stageSize;
+
+  const dragRef = useRef<{
     active: boolean;
     startX: number;
     startY: number;
-    originX: number;
-    originY: number;
+    originCx: number;
+    originCy: number;
     moved: boolean;
-  }>({ active: false, startX: 0, startY: 0, originX: 0, originY: 0, moved: false });
+  }>({ active: false, startX: 0, startY: 0, originCx: projW / 2, originCy: projH / 2, moved: false });
 
   const pinchRef = useRef<{
     initialDist: number;
     initialZoom: number;
+    anchorSvgX: number;
+    anchorSvgY: number;
   } | null>(null);
 
   const stats = useMemo(
@@ -95,58 +183,161 @@ export function SiteplanViewer({
   );
 
   const resetView = useCallback(() => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  }, []);
+    setCamera({ cx: projW / 2, cy: projH / 2, zoom: 1 });
+  }, [projH, projW]);
+
+  const zoomBy = useCallback(
+    (delta: number) => {
+      setCamera((prev) => clampCamera({ ...prev, zoom: prev.zoom + delta }));
+    },
+    [clampCamera]
+  );
+
+  // Focus camera directly onto a searched/selected kavling in exact SVG coordinate space
+  const focusOnUnit = useCallback(
+    (unit: KavlingUnit) => {
+      setSelectedUnitId(unit.id);
+      setHighlightedUnitId(unit.id);
+      const center = getUnitTransformedCenter(activeProject, unit);
+      setCamera(clampCamera({ cx: center.x, cy: center.y, zoom: 2.0 }));
+    },
+    [activeProject, clampCamera]
+  );
 
   /**
-   * Native non-passive wheel listener:
-   * - Normal scroll ALWAYS scrolls the page smoothly (never hijacks scrolling!).
-   * - Ctrl/Cmd + Scroll (or trackpad pinch-to-zoom) cleanly zooms the map WITHOUT scrolling the page.
+   * Native non-passive Wheel + Touch Listeners:
+   * - Desktop plain wheel -> scrolls page naturally (never hijacks scroll!).
+   * - Desktop Ctrl/Cmd + wheel -> crisp vector zoom centered on pointer WITHOUT scrolling page.
+   * - Mobile 2-finger pinch -> smooth native Retina vector zoom without Safari browser zoom.
+   * - Mobile 1-finger drag -> pans smoothly when zoomed > 1 or fullscreen; scrolls page naturally at 100%.
    */
   useEffect(() => {
     const el = stageRef.current;
     if (!el) return;
 
-    const onNativeWheel = (e: WheelEvent) => {
-      if (!e.ctrlKey && !e.metaKey) {
-        // Let normal page scrolling work naturally!
-        return;
-      }
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
-      const delta = e.deltaY < 0 ? 0.16 : -0.16;
-      setZoom((prev) =>
-        Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Number((prev + delta).toFixed(2))))
-      );
+      const rect = el.getBoundingClientRect();
+      const relX = (e.clientX - rect.left) / rect.width;
+      const relY = (e.clientY - rect.top) / rect.height;
+
+      const vb = viewBoxRef.current;
+      const pointerSvgX = vb.x + relX * vb.width;
+      const pointerSvgY = vb.y + relY * vb.height;
+
+      const cur = cameraRef.current;
+      const delta = e.deltaY < 0 ? 0.22 : -0.22;
+      const nextZoom = clamp(Number((cur.zoom + delta).toFixed(2)), MIN_ZOOM, MAX_ZOOM);
+      const nextVbW = baseViewSize.width / nextZoom;
+      const nextVbH = baseViewSize.height / nextZoom;
+
+      const nextCx = pointerSvgX - (relX - 0.5) * nextVbW;
+      const nextCy = pointerSvgY - (relY - 0.5) * nextVbH;
+      setCamera(clampCamera({ cx: nextCx, cy: nextCy, zoom: nextZoom }));
     };
 
-    el.addEventListener('wheel', onNativeWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onNativeWheel);
-  }, []);
-
-  // Center viewport smoothly on a specific unit
-  const focusOnUnit = useCallback(
-    (unit: KavlingUnit) => {
-      setSelectedUnitId(unit.id);
-      setHighlightedUnitId(unit.id);
-
-      const stage = stageRef.current;
-      if (stage) {
-        const targetZoom = 1.55;
-        const center = getUnitTransformedCenter(activeProject, unit);
-        const unitCenterXRatio = center.x / activeProject.viewBox.width;
-        const unitCenterYRatio = center.y / activeProject.viewBox.height;
-        const rect = stage.getBoundingClientRect();
-        const offsetX = (0.5 - unitCenterXRatio) * rect.width * 0.72 * targetZoom;
-        const offsetY = (0.5 - unitCenterYRatio) * rect.height * 0.72 * targetZoom;
-        setZoom(targetZoom);
-        setPan({ x: offsetX, y: offsetY });
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        pinchRef.current = null;
+        if (cameraRef.current.zoom > 1.02 || isFullscreen) {
+          const t = e.touches[0];
+          dragRef.current = {
+            active: true,
+            startX: t.clientX,
+            startY: t.clientY,
+            originCx: cameraRef.current.cx,
+            originCy: cameraRef.current.cy,
+            moved: false,
+          };
+        }
+      } else if (e.touches.length === 2) {
+        dragRef.current.active = false;
+        const rect = el.getBoundingClientRect();
+        const midClientX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const midClientY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        const relX = (midClientX - rect.left) / rect.width;
+        const relY = (midClientY - rect.top) / rect.height;
+        const vb = viewBoxRef.current;
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        pinchRef.current = {
+          initialDist: Math.max(1, dist),
+          initialZoom: cameraRef.current.zoom,
+          anchorSvgX: vb.x + relX * vb.width,
+          anchorSvgY: vb.y + relY * vb.height,
+        };
       }
-    },
-    [activeProject]
-  );
+    };
 
-  // Handle deep-link intent from Dashboard
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && pinchRef.current) {
+        e.preventDefault();
+        const rect = el.getBoundingClientRect();
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        const midClientX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const midClientY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        const relX = (midClientX - rect.left) / rect.width;
+        const relY = (midClientY - rect.top) / rect.height;
+
+        const nextZoom = clamp(
+          Number(((pinchRef.current.initialZoom * dist) / pinchRef.current.initialDist).toFixed(2)),
+          MIN_ZOOM,
+          MAX_ZOOM
+        );
+        const nextVbW = baseViewSize.width / nextZoom;
+        const nextVbH = baseViewSize.height / nextZoom;
+        const nextCx = pinchRef.current.anchorSvgX - (relX - 0.5) * nextVbW;
+        const nextCy = pinchRef.current.anchorSvgY - (relY - 0.5) * nextVbH;
+        setCamera(clampCamera({ cx: nextCx, cy: nextCy, zoom: nextZoom }));
+      } else if (e.touches.length === 1 && dragRef.current.active) {
+        e.preventDefault();
+        const t = e.touches[0];
+        const dx = t.clientX - dragRef.current.startX;
+        const dy = t.clientY - dragRef.current.startY;
+        if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+          dragRef.current.moved = true;
+        }
+        const vb = viewBoxRef.current;
+        const sz = stageSizeRef.current;
+        const scaleX = vb.width / Math.max(1, sz.width);
+        const scaleY = vb.height / Math.max(1, sz.height);
+        setCamera(
+          clampCamera({
+            cx: dragRef.current.originCx - dx * scaleX,
+            cy: dragRef.current.originCy - dy * scaleY,
+            zoom: cameraRef.current.zoom,
+          })
+        );
+      }
+    };
+
+    const onTouchEnd = () => {
+      dragRef.current.active = false;
+      pinchRef.current = null;
+    };
+
+    el.addEventListener('wheel', onWheel, { passive: false });
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', onTouchEnd, { passive: true });
+    el.addEventListener('touchcancel', onTouchEnd, { passive: true });
+
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+      el.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, [baseViewSize.height, baseViewSize.width, clampCamera, isFullscreen]);
+
+  // Deep-link intent from Dashboard
   useEffect(() => {
     if (initialFilterStatuses && initialFilterStatuses.length > 0) {
       setActiveStatusFilters(initialFilterStatuses);
@@ -168,12 +359,20 @@ export function SiteplanViewer({
     onClearInitialIntent,
   ]);
 
-  // Clear highlight pulse after 5.5s
   useEffect(() => {
     if (!highlightedUnitId) return;
     const timer = window.setTimeout(() => setHighlightedUnitId(null), 5500);
     return () => window.clearTimeout(timer);
   }, [highlightedUnitId]);
+
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsFullscreen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isFullscreen]);
 
   const handleSwitchProject = (nextId: ProjectId) => {
     onSelectProject(nextId);
@@ -184,7 +383,7 @@ export function SiteplanViewer({
     resetView();
   };
 
-  // Search block code matching
+  // Block search
   const normalizedQuery = searchQuery.trim().toUpperCase().replace(/\s+/g, '');
 
   const currentProjectMatches = useMemo(() => {
@@ -232,95 +431,46 @@ export function SiteplanViewer({
     );
   };
 
-  // Mouse Drag / Pan handlers
+  // Desktop Mouse Pan
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button !== 0) return;
-    dragStateRef.current = {
+    dragRef.current = {
       active: true,
       startX: e.clientX,
       startY: e.clientY,
-      originX: pan.x,
-      originY: pan.y,
+      originCx: camera.cx,
+      originCy: camera.cy,
       moved: false,
     };
     setIsDragging(true);
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!dragStateRef.current.active) return;
-    const dx = e.clientX - dragStateRef.current.startX;
-    const dy = e.clientY - dragStateRef.current.startY;
+    if (!dragRef.current.active) return;
+    const dx = e.clientX - dragRef.current.startX;
+    const dy = e.clientY - dragRef.current.startY;
     if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
-      dragStateRef.current.moved = true;
+      dragRef.current.moved = true;
     }
-    setPan({
-      x: dragStateRef.current.originX + dx,
-      y: dragStateRef.current.originY + dy,
-    });
+    const scaleX = customViewBox.width / Math.max(1, stageSize.width);
+    const scaleY = customViewBox.height / Math.max(1, stageSize.height);
+    setCamera(
+      clampCamera({
+        cx: dragRef.current.originCx - dx * scaleX,
+        cy: dragRef.current.originCy - dy * scaleY,
+        zoom: camera.zoom,
+      })
+    );
   };
 
   const handleMouseUpOrLeave = () => {
-    dragStateRef.current.active = false;
+    dragRef.current.active = false;
     setIsDragging(false);
   };
 
-  // Touch Pan (when zoomed in) & Two-Finger Pinch Zoom (does not trap vertical scroll at 100%)
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length === 1 && zoom > 1) {
-      const t = e.touches[0];
-      dragStateRef.current = {
-        active: true,
-        startX: t.clientX,
-        startY: t.clientY,
-        originX: pan.x,
-        originY: pan.y,
-        moved: false,
-      };
-      pinchRef.current = null;
-    } else if (e.touches.length === 2) {
-      dragStateRef.current.active = false;
-      const dist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      pinchRef.current = { initialDist: dist, initialZoom: zoom };
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (e.touches.length === 1 && dragStateRef.current.active) {
-      const t = e.touches[0];
-      const dx = t.clientX - dragStateRef.current.startX;
-      const dy = t.clientY - dragStateRef.current.startY;
-      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
-        dragStateRef.current.moved = true;
-      }
-      setPan({
-        x: dragStateRef.current.originX + dx,
-        y: dragStateRef.current.originY + dy,
-      });
-    } else if (e.touches.length === 2 && pinchRef.current) {
-      const dist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      const scaleRatio = dist / pinchRef.current.initialDist;
-      const nextZoom = Math.min(
-        MAX_ZOOM,
-        Math.max(MIN_ZOOM, Number((pinchRef.current.initialZoom * scaleRatio).toFixed(2)))
-      );
-      setZoom(nextZoom);
-    }
-  };
-
-  const handleTouchEnd = () => {
-    dragStateRef.current.active = false;
-    pinchRef.current = null;
-  };
-
   const handleSelectUnitFromMap = useCallback((unit: KavlingUnit) => {
-    if (dragStateRef.current.moved) {
-      dragStateRef.current.moved = false;
+    if (dragRef.current.moved) {
+      dragRef.current.moved = false;
       return;
     }
     setSelectedUnitId(unit.id);
@@ -332,11 +482,11 @@ export function SiteplanViewer({
     activeStatusFilters.includes('booking');
 
   return (
-    <main className="mx-auto max-w-[1440px] space-y-3 px-3 py-4 sm:px-6">
-      {/* 4-Siteplan Tabs + Export Actions */}
-      <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
+    <main className="mx-auto max-w-[1440px] space-y-2.5 px-3 py-3 sm:space-y-3 sm:px-6 sm:py-4">
+      {/* 4-Siteplan Horizontal Tabs + Desktop Export Actions */}
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
         <div
-          className="flex gap-2 overflow-x-auto pb-0.5"
+          className="no-scrollbar flex gap-1.5 overflow-x-auto pb-0.5 sm:gap-2"
           role="tablist"
           aria-label="Pilih Lokasi Siteplan"
         >
@@ -350,14 +500,14 @@ export function SiteplanViewer({
                 role="tab"
                 aria-selected={active}
                 onClick={() => handleSwitchProject(p.id)}
-                className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-left transition cursor-pointer ${
+                className={`flex shrink-0 items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left transition sm:px-3 sm:py-2 cursor-pointer ${
                   active
                     ? 'border-slate-900 bg-slate-900 text-white shadow-xs'
                     : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                 }`}
               >
                 <span
-                  className={`flex h-5 w-5 items-center justify-center rounded-md font-mono text-[11px] font-bold ${
+                  className={`flex h-5 w-5 items-center justify-center rounded-md font-mono text-[10px] font-bold sm:text-[11px] ${
                     active ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-600'
                   }`}
                 >
@@ -369,10 +519,10 @@ export function SiteplanViewer({
                   </div>
                   <div
                     className={`font-mono text-[10px] font-semibold ${
-                      active ? 'text-emerald-300' : 'text-emerald-600'
+                      active ? 'text-emerald-300' : 'text-emerald-700'
                     }`}
                   >
-                    {pStats.byStatus.open} Open / {pStats.total}
+                    {pStats.byStatus.open} Open/{pStats.total}
                   </div>
                 </div>
               </button>
@@ -380,7 +530,7 @@ export function SiteplanViewer({
           })}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="hidden items-center gap-2 lg:flex">
           <button
             type="button"
             onClick={() => onExportSinglePdf(activeProject.id)}
@@ -400,13 +550,13 @@ export function SiteplanViewer({
         </div>
       </div>
 
-      {/* Compact Search + Color Filter Toolbar */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-2xs space-y-2.5">
-        <div className="flex flex-col gap-2.5 md:flex-row md:items-center md:justify-between">
-          {/* Block Code Search */}
-          <div className="relative w-full md:max-w-xs">
+      {/* Compact Mobile-Friendly Search & Horizontal-Scroll Filter Strip */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-2xs sm:p-3 space-y-2">
+        <div className="flex items-center gap-2">
+          {/* Block Search */}
+          <div className="relative min-w-0 flex-1 md:max-w-xs">
             <form onSubmit={handleSearchSubmit} className="relative flex items-center">
-              <Search className="pointer-events-none absolute left-3 h-4 w-4 text-slate-400" />
+              <Search className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-slate-400" />
               <input
                 type="text"
                 value={searchQuery}
@@ -415,8 +565,8 @@ export function SiteplanViewer({
                   setSearchQuery(e.target.value);
                   setShowSuggestions(true);
                 }}
-                placeholder="Cari blok (A31, B1, C12)..."
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-1.5 pr-16 pl-9 text-xs font-semibold text-slate-900 placeholder:font-normal placeholder:text-slate-400 focus:border-slate-900 focus:bg-white focus:outline-hidden sm:text-sm"
+                placeholder="Cari blok (A31, B1)..."
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-1.5 pr-14 pl-8 text-xs font-semibold text-slate-900 placeholder:font-normal placeholder:text-slate-400 focus:border-slate-900 focus:bg-white focus:outline-hidden sm:text-sm"
                 aria-label="Pencarian Nomor Blok Kavling"
               />
               {searchQuery && (
@@ -427,7 +577,7 @@ export function SiteplanViewer({
                     setHighlightedUnitId(null);
                     setShowSuggestions(false);
                   }}
-                  className="absolute right-12 rounded p-1 text-slate-400 hover:text-slate-700 cursor-pointer"
+                  className="absolute right-11 rounded p-1 text-slate-400 hover:text-slate-700 cursor-pointer"
                   aria-label="Hapus pencarian"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -435,7 +585,7 @@ export function SiteplanViewer({
               )}
               <button
                 type="submit"
-                className="absolute right-1.5 rounded-lg bg-slate-900 px-2.5 py-1 text-[11px] font-bold text-white transition hover:bg-slate-800 cursor-pointer"
+                className="absolute right-1 rounded-lg bg-slate-900 px-2 py-1 text-[11px] font-bold text-white cursor-pointer"
               >
                 Cari
               </button>
@@ -513,59 +663,60 @@ export function SiteplanViewer({
               )}
           </div>
 
-          {/* Quick Filters */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setActiveStatusFilters([])}
-              className={`rounded-lg px-2.5 py-1.5 text-xs font-bold transition cursor-pointer ${
-                activeStatusFilters.length === 0
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              Semua ({stats.total})
-            </button>
+          {/* Quick Open + Booking Filter Pill */}
+          <button
+            type="button"
+            onClick={() =>
+              setActiveStatusFilters(isMarketingQuickActive ? [] : ['open', 'booking'])
+            }
+            className={`inline-flex shrink-0 items-center gap-1 rounded-xl border px-2.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+              isMarketingQuickActive
+                ? 'border-emerald-700 bg-emerald-700 text-white'
+                : 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+            }`}
+          >
+            <Filter className="h-3 w-3" />
+            <span className="hidden sm:inline">Open + Booking</span>
+            <span className="sm:hidden">Open/Book</span>
+            <span className="font-mono text-[11px]">
+              ({stats.byStatus.open + stats.byStatus.booking})
+            </span>
+          </button>
+
+          {role === 'marketing' && (
             <button
               type="button"
               onClick={() =>
-                setActiveStatusFilters(isMarketingQuickActive ? [] : ['open', 'booking'])
+                setActiveStatusFilters(
+                  activeStatusFilters.length === 1 && activeStatusFilters[0] === 'open'
+                    ? []
+                    : ['open']
+                )
               }
-              className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition cursor-pointer ${
-                isMarketingQuickActive
-                  ? 'border-emerald-600 bg-emerald-600 text-white'
-                  : 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+              className={`hidden shrink-0 rounded-xl border px-2.5 py-1.5 text-xs font-bold transition sm:inline-flex cursor-pointer ${
+                activeStatusFilters.length === 1 && activeStatusFilters[0] === 'open'
+                  ? 'border-green-700 bg-green-700 text-white'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
               }`}
             >
-              <Filter className="h-3 w-3" />
-              <span>
-                Open + Booking ({stats.byStatus.open + stats.byStatus.booking})
-              </span>
+              Hanya Open ({stats.byStatus.open})
             </button>
-            {role === 'marketing' && (
-              <button
-                type="button"
-                onClick={() =>
-                  setActiveStatusFilters(
-                    activeStatusFilters.length === 1 && activeStatusFilters[0] === 'open'
-                      ? []
-                      : ['open']
-                  )
-                }
-                className={`rounded-lg border px-2.5 py-1.5 text-xs font-bold transition cursor-pointer ${
-                  activeStatusFilters.length === 1 && activeStatusFilters[0] === 'open'
-                    ? 'border-green-600 bg-green-600 text-white'
-                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                Hanya Open ({stats.byStatus.open})
-              </button>
-            )}
-          </div>
+          )}
         </div>
 
-        {/* Interactive 6-Color Legend Filter */}
-        <div className="flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-2.5">
+        {/* Single-Row Horizontal Scrollable 6-Color Legend Filter */}
+        <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto border-t border-slate-100 pt-2">
+          {activeStatusFilters.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setActiveStatusFilters([])}
+              className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-200 cursor-pointer"
+            >
+              <X className="h-3 w-3" />
+              <span>Semua</span>
+            </button>
+          )}
+
           {STATUS_ORDER.map((statusKey) => {
             const meta = STATUS_CONFIG[statusKey];
             const isActive = activeStatusFilters.includes(statusKey);
@@ -578,7 +729,7 @@ export function SiteplanViewer({
                 type="button"
                 onClick={() => toggleStatusFilter(statusKey)}
                 aria-pressed={isActive}
-                className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold transition cursor-pointer ${
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-bold transition sm:px-2.5 sm:text-xs cursor-pointer ${
                   isActive
                     ? 'border-slate-900 bg-slate-900 text-white'
                     : hasAnyFilter
@@ -587,7 +738,7 @@ export function SiteplanViewer({
                 }`}
               >
                 <span
-                  className="inline-block h-3 w-3 shrink-0 rounded-[3px]"
+                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-[2px] sm:h-3 sm:w-3"
                   style={{
                     backgroundColor: meta.color,
                     border: meta.isDashed
@@ -595,10 +746,10 @@ export function SiteplanViewer({
                       : `1px solid ${isActive ? '#FFFFFF' : meta.darkStroke}`,
                   }}
                 />
-                <span>{meta.label}</span>
+                <span>{meta.shortLabel}</span>
                 {meta.subLabel && (
                   <span
-                    className={`hidden sm:inline text-[10px] font-medium ${
+                    className={`hidden md:inline text-[10px] font-medium ${
                       isActive ? 'text-slate-300' : 'text-slate-400'
                     }`}
                   >
@@ -606,7 +757,7 @@ export function SiteplanViewer({
                   </span>
                 )}
                 <span
-                  className={`rounded px-1 font-mono text-[11px] ${
+                  className={`rounded px-1 font-mono text-[10px] sm:text-[11px] ${
                     isActive ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-700'
                   }`}
                 >
@@ -615,85 +766,92 @@ export function SiteplanViewer({
               </button>
             );
           })}
-
-          {activeStatusFilters.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setActiveStatusFilters([])}
-              className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-sky-700 hover:bg-sky-50 cursor-pointer"
-            >
-              <X className="h-3.5 w-3.5" />
-              <span>Reset</span>
-            </button>
-          )}
         </div>
       </div>
 
-      {/* Main Split Stage: SVG Canvas + Inspector */}
+      {/* Main Split Stage: Pure Vector ViewBox SVG Map + Inspector */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
-        <section className="relative flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
-          {/* Minimal Map Header */}
-          <div className="flex items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/70 px-4 py-2">
-            <h2 className="text-sm font-extrabold text-slate-900">
+        <section
+          className={
+            isFullscreen
+              ? 'fixed inset-0 z-40 flex flex-col bg-white'
+              : 'relative flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs'
+          }
+        >
+          {/* Compact Map Header */}
+          <div className="flex items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/80 px-3 py-2 sm:px-4">
+            <h2 className="truncate text-xs font-extrabold text-slate-900 sm:text-sm">
               {activeProject.name}
             </h2>
-            <div className="flex items-center gap-2">
-              <span className="hidden sm:inline text-[11px] font-medium text-slate-400">
+
+            <div className="flex shrink-0 items-center gap-1.5">
+              <span className="hidden lg:inline text-[11px] font-medium text-slate-400">
                 Ctrl + Scroll untuk zoom
               </span>
-              <span className="rounded-md bg-white px-2 py-0.5 font-mono text-xs font-bold text-slate-700 ring-1 ring-slate-200">
-                {Math.round(zoom * 100)}%
+              <span className="rounded-md bg-white px-2 py-0.5 font-mono text-[11px] font-bold text-slate-700 ring-1 ring-slate-200">
+                {Math.round(camera.zoom * 100)}%
               </span>
+              <button
+                type="button"
+                onClick={() => onExportSinglePdf(activeProject.id)}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 lg:hidden cursor-pointer"
+                title="Export PDF Siteplan Ini"
+                aria-label="Export PDF Siteplan Ini"
+              >
+                <Printer className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsFullscreen((v) => !v)}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 cursor-pointer"
+                title={isFullscreen ? 'Keluar Layar Penuh' : 'Peta Layar Penuh'}
+                aria-label={isFullscreen ? 'Keluar Layar Penuh' : 'Peta Layar Penuh'}
+              >
+                {isFullscreen ? (
+                  <Minimize2 className="h-3.5 w-3.5" />
+                ) : (
+                  <Maximize2 className="h-3.5 w-3.5" />
+                )}
+              </button>
             </div>
           </div>
 
-          {/* Pan & Zoom Surface — Normal scroll passes through cleanly to the page */}
+          {/* Pure Vector SVG ViewBox Interactive Canvas (ZERO CSS scale blur on iPhone Safari!) */}
           <div
             ref={stageRef}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUpOrLeave}
             onMouseLeave={handleMouseUpOrLeave}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-            className={`blueprint-stage relative h-[430px] w-full overflow-hidden sm:h-[540px] lg:h-[600px] ${
-              isDragging ? 'cursor-grabbing' : 'cursor-grab'
-            }`}
-            style={{ touchAction: zoom > 1 ? 'none' : 'pan-y' }}
+            className={`blueprint-stage relative w-full overflow-hidden ${
+              isFullscreen
+                ? 'flex-1'
+                : 'h-[52vh] min-h-[340px] max-h-[540px] lg:h-[600px] lg:max-h-none'
+            } ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+            style={{
+              touchAction: camera.zoom > 1.02 || isFullscreen ? 'none' : 'pan-y',
+            }}
           >
-            <div
-              className="flex h-full w-full items-center justify-center p-2.5 sm:p-4"
-              style={{
-                transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
-                transformOrigin: 'center center',
-                transition: isDragging
-                  ? 'none'
-                  : 'transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1)',
-              }}
-            >
-              <div className="flex h-full w-full items-center justify-center">
-                <div className="w-full max-w-[920px] rounded-xl border border-slate-200/90 bg-white shadow-sm">
-                  <SiteplanSvg
-                    project={activeProject}
-                    mode="interactive"
-                    selectedUnitId={selectedUnitId}
-                    highlightedUnitId={highlightedUnitId}
-                    activeStatusFilters={activeStatusFilters}
-                    onSelectUnit={handleSelectUnitFromMap}
-                    className="block h-auto max-h-[568px] w-full rounded-xl"
-                  />
-                </div>
-              </div>
-            </div>
+            <SiteplanSvg
+              project={activeProject}
+              mode="interactive"
+              selectedUnitId={selectedUnitId}
+              highlightedUnitId={highlightedUnitId}
+              activeStatusFilters={activeStatusFilters}
+              customViewBox={customViewBox}
+              onSelectUnit={handleSelectUnitFromMap}
+              className="h-full w-full"
+            />
 
-            {/* Floating Zoom Controls */}
-            <div className="absolute bottom-3 right-3 z-20 flex flex-col gap-1 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-md backdrop-blur">
+            {/* Floating Zoom Controls (stayed cleanly above compact mobile dock when open) */}
+            <div
+              className={`absolute right-2.5 z-20 flex flex-col gap-1 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-md backdrop-blur transition-all ${
+                selectedUnit ? 'top-2.5 lg:top-auto lg:bottom-3' : 'bottom-3'
+              }`}
+            >
               <button
                 type="button"
-                onClick={() =>
-                  setZoom((z) => Math.min(MAX_ZOOM, Number((z + 0.25).toFixed(2))))
-                }
+                onClick={() => zoomBy(0.4)}
                 className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-700 transition hover:bg-slate-100 cursor-pointer"
                 title="Zoom In (+)"
                 aria-label="Zoom In"
@@ -702,9 +860,7 @@ export function SiteplanViewer({
               </button>
               <button
                 type="button"
-                onClick={() =>
-                  setZoom((z) => Math.max(MIN_ZOOM, Number((z - 0.25).toFixed(2))))
-                }
+                onClick={() => zoomBy(-0.4)}
                 className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-700 transition hover:bg-slate-100 cursor-pointer"
                 title="Zoom Out (-)"
                 aria-label="Zoom Out"

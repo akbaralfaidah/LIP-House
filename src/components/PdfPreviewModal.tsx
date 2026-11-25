@@ -45,7 +45,7 @@ export function PdfPreviewModal({
 
   return (
     <div
-      className="no-print fixed inset-0 z-50 flex flex-col bg-slate-900/70 backdrop-blur-xs"
+      className="no-print fixed inset-0 z-[60] flex flex-col bg-slate-900/70 backdrop-blur-xs"
       role="dialog"
       aria-modal="true"
       aria-label="Pratinjau Export PDF Siteplan LIP House"

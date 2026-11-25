@@ -18,10 +18,10 @@ const ROLE_ORDER: UserRole[] = ['admin', 'pimpinan', 'marketing'];
 
 export function DemoRoleBar({ role, onChangeRole, onResetDemo }: DemoRoleBarProps) {
   return (
-    <div className="no-print sticky top-0 z-40 border-b border-slate-800 bg-slate-900 text-slate-100">
-      <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-2 px-3 py-1.5 sm:px-6">
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-sky-300">
+    <div className="no-print sticky top-0 z-30 border-b border-slate-800 bg-slate-900 text-slate-100">
+      <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-2 px-3 py-1.5 sm:px-6">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="hidden text-[11px] font-bold uppercase tracking-wider text-sky-300 sm:inline">
             Mode Demo:
           </span>
 
@@ -42,7 +42,7 @@ export function DemoRoleBar({ role, onChangeRole, onResetDemo }: DemoRoleBarProp
                   role="tab"
                   aria-selected={isActive}
                   onClick={() => onChangeRole(roleKey)}
-                  className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                  className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold transition sm:gap-1.5 sm:px-2.5 sm:text-xs cursor-pointer ${
                     isActive
                       ? 'bg-white text-slate-900 shadow-xs'
                       : 'text-slate-300 hover:bg-slate-700/70 hover:text-white'
@@ -59,11 +59,12 @@ export function DemoRoleBar({ role, onChangeRole, onResetDemo }: DemoRoleBarProp
         <button
           type="button"
           onClick={onResetDemo}
-          className="inline-flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs font-medium text-slate-200 transition hover:border-slate-500 hover:bg-slate-700 hover:text-white cursor-pointer"
-          title="Kembalikan data ke kondisi awal demo"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-[11px] font-medium text-slate-200 transition hover:border-slate-500 hover:bg-slate-700 hover:text-white sm:px-2.5 sm:text-xs cursor-pointer"
+          title="Reset Data Demo"
+          aria-label="Reset Data Demo"
         >
           <RotateCcw className="h-3.5 w-3.5" />
-          <span>Reset Data</span>
+          <span className="hidden sm:inline">Reset Data</span>
         </button>
       </div>
     </div>
