@@ -479,7 +479,7 @@ export function SiteplanViewer({
   const isMarketingQuickActive =
     activeStatusFilters.length === 2 &&
     activeStatusFilters.includes('open') &&
-    activeStatusFilters.includes('booking');
+    activeStatusFilters.includes('minat');
 
   return (
     <main className="mx-auto max-w-[1440px] space-y-2.5 px-3 py-3 sm:space-y-3 sm:px-6 sm:py-4">
@@ -663,11 +663,11 @@ export function SiteplanViewer({
               )}
           </div>
 
-          {/* Quick Open + Booking Filter Pill */}
+          {/* Quick Open + Minat (Belum Lock) Filter Pill */}
           <button
             type="button"
             onClick={() =>
-              setActiveStatusFilters(isMarketingQuickActive ? [] : ['open', 'booking'])
+              setActiveStatusFilters(isMarketingQuickActive ? [] : ['open', 'minat'])
             }
             className={`inline-flex shrink-0 items-center gap-1 rounded-xl border px-2.5 py-1.5 text-xs font-bold transition cursor-pointer ${
               isMarketingQuickActive
@@ -676,10 +676,10 @@ export function SiteplanViewer({
             }`}
           >
             <Filter className="h-3 w-3" />
-            <span className="hidden sm:inline">Open + Booking</span>
-            <span className="sm:hidden">Open/Book</span>
+            <span className="hidden sm:inline">Open + Minat</span>
+            <span className="sm:hidden">Open/Minat</span>
             <span className="font-mono text-[11px]">
-              ({stats.byStatus.open + stats.byStatus.booking})
+              ({stats.byStatus.open + stats.byStatus.minat})
             </span>
           </button>
 

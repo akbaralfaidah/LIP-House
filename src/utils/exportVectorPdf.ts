@@ -157,10 +157,10 @@ export async function generateVectorSiteplanPdfBlob(params: {
     }
 
     // --- 3. BOTTOM LEGEND + RECAP TABLE (y: 170.5..200mm) ---
-    const footY = 171;
-    const footH = 27.5;
+    const footY = 170.5;
+    const footH = 28;
 
-    // Left: 6-Color Legend Card (112mm wide)
+    // Left: 7-Color Legend Card (112mm wide)
     const legendW = 112;
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(203, 213, 225);
@@ -168,13 +168,13 @@ export async function generateVectorSiteplanPdfBlob(params: {
     doc.roundedRect(margin, footY, legendW, footH, 1.5, 1.5, 'FD');
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.2);
+    doc.setFontSize(7.1);
     doc.setTextColor(51, 65, 85);
-    doc.text('LEGENDA 6 STATUS KAVLING', margin + 3.2, footY + 4.8);
+    doc.text('LEGENDA 7 STATUS KAVLING', margin + 3.2, footY + 4.4);
 
-    doc.setFontSize(6.6);
-    doc.setTextColor(154, 76, 31);
-    doc.text('Garis Putus = Belum Lock', margin + legendW - 3.2, footY + 4.8, {
+    doc.setFontSize(6.5);
+    doc.setTextColor(125, 96, 24);
+    doc.text('Garis Putus = Belum Lock', margin + legendW - 3.2, footY + 4.4, {
       align: 'right',
     });
 
@@ -183,7 +183,7 @@ export async function generateVectorSiteplanPdfBlob(params: {
       const col = sIdx % 2;
       const row = Math.floor(sIdx / 2);
       const itemX = margin + 3.2 + col * 54.5;
-      const itemY = footY + 8.5 + row * 6.2;
+      const itemY = footY + 7.2 + row * 5.0;
 
       const [r, g, b] = hexToRgb(meta.color);
       const [sr, sg, sb] = hexToRgb(meta.darkStroke);
@@ -195,20 +195,20 @@ export async function generateVectorSiteplanPdfBlob(params: {
       } else {
         doc.setLineDashPattern([], 0);
       }
-      doc.roundedRect(itemX, itemY, 3.6, 3.6, 0.5, 0.5, 'FD');
+      doc.roundedRect(itemX, itemY, 3.2, 3.2, 0.4, 0.4, 'FD');
       doc.setLineDashPattern([], 0);
 
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7.2);
+      doc.setFontSize(6.9);
       doc.setTextColor(15, 23, 42);
       const labelText = meta.subLabel ? `${meta.label} (${meta.subLabel})` : meta.label;
-      doc.text(labelText, itemX + 5.2, itemY + 2.7);
+      doc.text(labelText, itemX + 4.6, itemY + 2.5);
     });
 
-    // Right: Unit Recap Table (Count & Percentage, 161mm wide)
+    // Right: Unit Recap Table (9 columns: Rekap Status + 7 statuses + Total = 161mm)
     const tableX = margin + legendW + 4;
     const tableW = contentW - legendW - 4; // 161mm
-    const colWidths = [27, 19, 19, 19, 19, 22, 18, 18]; // sum = 161mm
+    const colWidths = [25, 16, 16, 18, 16, 16, 16, 18, 20]; // sum = 161mm
     const rowH = footH / 3;
 
     // Header Row (#0F172A)

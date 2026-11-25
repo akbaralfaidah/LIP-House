@@ -4,6 +4,7 @@ export type KavlingStatus =
   | 'booking'
   | 'sp3k'
   | 'akad'
+  | 'cash'
   | 'reject';
 
 export type UserRole = 'admin' | 'pimpinan' | 'marketing';

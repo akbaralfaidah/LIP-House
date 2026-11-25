@@ -7,16 +7,20 @@ export interface StatusCounts {
   lastUpdatedAt: string;
 }
 
-export function computeUnitsStats(units: KavlingUnit[]): StatusCounts {
-  const byStatus: Record<KavlingStatus, number> = {
+function emptyCounts(): Record<KavlingStatus, number> {
+  return {
     open: 0,
     minat: 0,
     booking: 0,
     sp3k: 0,
     akad: 0,
+    cash: 0,
     reject: 0,
   };
+}
 
+export function computeUnitsStats(units: KavlingUnit[]): StatusCounts {
+  const byStatus = emptyCounts();
   let latestTs = '';
 
   for (const u of units) {
@@ -34,15 +38,7 @@ export function computeUnitsStats(units: KavlingUnit[]): StatusCounts {
 }
 
 export function computeProjectsAggregate(projects: SiteplanProject[]): StatusCounts {
-  const byStatus: Record<KavlingStatus, number> = {
-    open: 0,
-    minat: 0,
-    booking: 0,
-    sp3k: 0,
-    akad: 0,
-    reject: 0,
-  };
-
+  const byStatus = emptyCounts();
   let total = 0;
   let latestTs = '';
 

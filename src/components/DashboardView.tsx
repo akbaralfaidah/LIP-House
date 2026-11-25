@@ -41,8 +41,12 @@ export function DashboardView({
   const aggregate = computeProjectsAggregate(projects);
   const roleMeta = ROLE_CONFIG[role];
 
-  const lockedAndSold = aggregate.byStatus.sp3k + aggregate.byStatus.akad;
-  const marketableCount = aggregate.byStatus.open + aggregate.byStatus.booking;
+  const lockedAndSold =
+    aggregate.byStatus.booking +
+    aggregate.byStatus.sp3k +
+    aggregate.byStatus.akad +
+    aggregate.byStatus.cash;
+  const marketableCount = aggregate.byStatus.open + aggregate.byStatus.minat;
 
   return (
     <main className="mx-auto max-w-[1440px] space-y-5 px-4 py-5 sm:px-6">
@@ -67,13 +71,13 @@ export function DashboardView({
                 type="button"
                 onClick={() =>
                   onOpenProject(projects[0].id, {
-                    filterStatuses: ['open', 'booking'],
+                    filterStatuses: ['open', 'minat'],
                   })
                 }
                 className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-800 transition hover:bg-emerald-100 sm:text-sm cursor-pointer"
               >
                 <Filter className="h-3.5 w-3.5" />
-                <span>Open &amp; Booking</span>
+                <span>Open &amp; Minat</span>
               </button>
             )}
             <button
@@ -94,11 +98,11 @@ export function DashboardView({
               Total <span className="font-mono">{aggregate.total}</span> Unit
             </span>
             <span className="font-semibold text-emerald-700">
-              Open + Booking: <span className="font-mono">{marketableCount}</span> (
+              Open + Minat (Belum Lock): <span className="font-mono">{marketableCount}</span> (
               {formatPercent(marketableCount, aggregate.total)})
             </span>
-            <span className="font-semibold text-blue-700">
-              SP3K + Akad: <span className="font-mono">{lockedAndSold}</span> (
+            <span className="font-semibold text-blue-800">
+              Terlock &amp; Terjual: <span className="font-mono">{lockedAndSold}</span> (
               {formatPercent(lockedAndSold, aggregate.total)})
             </span>
           </div>
@@ -106,7 +110,7 @@ export function DashboardView({
           <div
             className="flex h-3 w-full overflow-hidden rounded-full bg-slate-100 ring-1 ring-slate-200/80"
             role="img"
-            aria-label="Distribusi 6 status kavling"
+            aria-label="Distribusi 7 status kavling"
           >
             {STATUS_ORDER.map((statusKey) => {
               const count = aggregate.byStatus[statusKey];
@@ -126,9 +130,9 @@ export function DashboardView({
         </div>
       </section>
 
-      {/* 6 Official Status KPI Cards — Clean & Scannable */}
-      <section aria-label="KPI 6 Status Kavling">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      {/* 7 Official Status KPI Cards — Clean & Scannable */}
+      <section aria-label="KPI 7 Status Kavling">
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-7">
           {STATUS_ORDER.map((statusKey) => {
             const meta = STATUS_CONFIG[statusKey];
             const count = aggregate.byStatus[statusKey];
@@ -192,7 +196,7 @@ export function DashboardView({
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {projects.map((project, index) => {
             const stats = computeUnitsStats(project.units);
-            const openAndBooking = stats.byStatus.open + stats.byStatus.booking;
+            const openAndMinat = stats.byStatus.open + stats.byStatus.minat;
 
             return (
               <article
@@ -246,14 +250,14 @@ export function DashboardView({
                       })}
                     </div>
 
-                    <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6">
+                    <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-7">
                       {STATUS_ORDER.map((statusKey) => {
                         const meta = STATUS_CONFIG[statusKey];
                         const count = stats.byStatus[statusKey];
                         return (
                           <div
                             key={statusKey}
-                            className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1 ring-1 ring-slate-100"
+                            className="flex items-center justify-between rounded-lg bg-slate-50 px-1.5 py-1 ring-1 ring-slate-100"
                           >
                             <span className="flex items-center gap-1 truncate text-[10px] font-semibold text-slate-600">
                               <span
@@ -267,7 +271,7 @@ export function DashboardView({
                               />
                               <span className="truncate">{meta.shortLabel}</span>
                             </span>
-                            <span className="font-mono text-[11px] font-bold text-slate-900">
+                            <span className="font-mono text-[10.5px] font-bold text-slate-900">
                               {count}
                             </span>
                           </div>
@@ -300,12 +304,12 @@ export function DashboardView({
                         type="button"
                         onClick={() =>
                           onOpenProject(project.id, {
-                            filterStatuses: ['open', 'booking'],
+                            filterStatuses: ['open', 'minat'],
                           })
                         }
                         className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-800 transition hover:bg-emerald-100 cursor-pointer"
                       >
-                        Open/Book ({openAndBooking})
+                        Open/Minat ({openAndMinat})
                       </button>
                     )}
 

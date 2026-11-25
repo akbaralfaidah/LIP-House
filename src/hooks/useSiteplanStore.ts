@@ -7,7 +7,7 @@ import type {
   SiteplanStoreState,
 } from '../types/siteplan';
 
-const STORAGE_KEY = 'liphouse_live_siteplan_mockup_v5';
+const STORAGE_KEY = 'liphouse_live_siteplan_mockup_v6';
 
 function loadInitialState(): SiteplanStoreState {
   try {

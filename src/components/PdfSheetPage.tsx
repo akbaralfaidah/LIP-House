@@ -91,25 +91,25 @@ export function PdfSheetPage({
         />
       </div>
 
-      {/* Bottom Strip: 6-Color Legend + Recap Table */}
+      {/* Bottom Strip: 7-Color Legend + Recap Table */}
       <footer className="grid grid-cols-12 items-stretch gap-3 border-t border-slate-300 pt-2.5">
         <div className="col-span-5 flex flex-col justify-between rounded-lg border border-slate-200 bg-slate-50/70 p-2.5">
-          <div className="mb-1.5 flex items-center justify-between">
+          <div className="mb-1 flex items-center justify-between">
             <span className="text-[9.5px] font-extrabold uppercase tracking-wider text-slate-700">
-              Legenda 6 Status Kavling
+              Legenda 7 Status Kavling
             </span>
-            <span className="text-[8.5px] font-semibold text-orange-800">
+            <span className="text-[8.5px] font-semibold text-amber-800">
               Garis Putus = Belum Lock
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-x-2.5 gap-y-1.5">
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1">
             {STATUS_ORDER.map((statusKey) => {
               const meta = STATUS_CONFIG[statusKey];
               return (
-                <div key={statusKey} className="flex items-start gap-1.5">
+                <div key={statusKey} className="flex items-center gap-1.5">
                   <span
-                    className="mt-0.5 inline-block h-3 w-3 shrink-0 rounded-[2.5px]"
+                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-[2px]"
                     style={{
                       backgroundColor: meta.color,
                       border: meta.isDashed
@@ -117,16 +117,14 @@ export function PdfSheetPage({
                         : `1px solid ${meta.darkStroke}`,
                     }}
                   />
-                  <div className="min-w-0 leading-tight">
-                    <div className="text-[9.5px] font-bold text-slate-900">
-                      {meta.label}
-                      {meta.subLabel && (
-                        <span className="font-semibold text-slate-600">
-                          {' '}
-                          ({meta.subLabel})
-                        </span>
-                      )}
-                    </div>
+                  <div className="min-w-0 truncate text-[9px] font-bold leading-tight text-slate-900">
+                    {meta.label}
+                    {meta.subLabel && (
+                      <span className="font-semibold text-slate-600">
+                        {' '}
+                        ({meta.subLabel})
+                      </span>
+                    )}
                   </div>
                 </div>
               );

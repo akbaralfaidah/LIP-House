@@ -12,25 +12,30 @@ const ADMINS = ['Rina Marlina', 'Dedi Saputra', 'Siti Rahma'] as const;
 const NOTES_BY_STATUS: Record<KavlingStatus, string[]> = {
   open: ['', '', 'Kavling siap bangun, akses jalan blok sudah pengerasan', ''],
   minat: [
-    'Calon konsumen sudah survei lokasi, rencana konfirmasi pekan ini',
-    'Minat awal via marketing lapangan, minta jadwal kunjungan keluarga',
-    'Sudah isi form minat, masih membandingkan posisi blok',
+    'Belum lock — calon konsumen sudah survei lokasi, rencana konfirmasi pekan ini',
+    'Belum lock — minat awal via marketing lapangan, jadwal kunjungan keluarga',
+    'Belum lock — sudah isi form minat, masih membandingkan posisi blok',
   ],
   booking: [
-    'Menunggu kelengkapan berkas KTP/KK dan surat nikah',
-    'Tanda jadi sudah masuk, kurang slip gaji 3 bulan terakhir',
-    'Menunggu verifikasi NPWP & surat keterangan kerja',
-    'Berkas dasar masuk, menunggu kelengkapan rekening koran',
+    'Unit terlock — tanda jadi masuk, proses kelengkapan berkas KTP/KK',
+    'Unit terlock — booking resmi tercatat, melengkapi slip gaji 3 bulan terakhir',
+    'Unit terlock — verifikasi NPWP & surat keterangan kerja',
+    'Unit terlock — berkas dasar masuk, antrean pengajuan bank',
   ],
   sp3k: [
     'SP3K Bank BTN terbit, menunggu jadwal akad kredit',
-    'Berkas disetujui bank pelaksana, unit resmi terkunci',
+    'Berkas disetujui bank pelaksana, unit terlock bank',
     'SP3K aktif — persiapan validasi pajak & notaris',
   ],
   akad: [
-    'Akad kredit selesai via notaris rekanan',
-    'Pembelian cash bertahap lunas, serah terima kunci terjadwal',
+    'Akad kredit KPR selesai via notaris rekanan',
     'Closing final — akad kredit Bank Mandiri selesai',
+    'Akad kredit Bank BTN tuntas, jadwal serah terima kunci',
+  ],
+  cash: [
+    'Pembelian cash keras lunas, serah terima kunci terjadwal',
+    'Pembelian cash bertahap lunas via transfer resmi LIP House',
+    'Closing final cash — proses balik nama sertifikat',
   ],
   reject: [
     'Pengajuan ditolak karena riwayat SLIK OJK / BI Checking',
@@ -113,8 +118,8 @@ function buildMendaloProject(): SiteplanProject {
   const units: KavlingUnit[] = [];
 
   const statusPatternA: KavlingStatus[] = [
-    'akad', 'akad', 'sp3k', 'sp3k', 'booking', 'open', 'open', 'minat',
-    'akad', 'sp3k', 'booking', 'open', 'open', 'reject', 'sp3k', 'akad',
+    'akad', 'cash', 'sp3k', 'sp3k', 'booking', 'open', 'open', 'minat',
+    'akad', 'sp3k', 'booking', 'open', 'open', 'reject', 'sp3k', 'cash',
     'akad', 'sp3k', 'sp3k', 'booking', 'minat', 'open', 'open', 'akad',
     'sp3k', 'booking', 'open', 'minat', 'sp3k', 'akad', 'booking',
   ];
@@ -155,7 +160,7 @@ function buildMendaloProject(): SiteplanProject {
         frontSide: 'bottom',
         seed: 130 + i,
         overrideNote: isA31
-          ? 'Menunggu kelengkapan berkas KTP/KK & slip gaji terbaru'
+          ? 'Unit terlock — booking resmi masuk, proses berkas KTP/KK'
           : undefined,
         hoursAgo: isA31 ? 0.4 : undefined,
       })
@@ -191,7 +196,7 @@ function buildMendaloProject(): SiteplanProject {
 
   const statusPatternC: KavlingStatus[] = [
     'open', 'open', 'booking', 'sp3k',
-    'minat', 'open', 'akad', 'booking',
+    'minat', 'open', 'cash', 'booking',
   ];
 
   // Blok C: C1 - C8 (back-to-back touching Blok B, facing South ROW 6)
@@ -372,16 +377,16 @@ function buildMayangProject(): SiteplanProject {
   const units: KavlingUnit[] = [];
 
   const statusesA: KavlingStatus[] = [
-    'akad', 'akad', 'sp3k', 'booking', 'open', 'open', 'minat',
+    'akad', 'cash', 'sp3k', 'booking', 'open', 'open', 'minat',
     'sp3k', 'akad', 'booking', 'open', 'minat', 'open', 'sp3k',
   ];
   const statusesB: KavlingStatus[] = [
-    'open', 'open', 'minat', 'booking', 'sp3k', 'akad', 'akad',
+    'open', 'open', 'minat', 'booking', 'sp3k', 'akad', 'cash',
     'open', 'booking', 'reject', 'sp3k', 'open', 'minat', 'booking',
   ];
   const statusesC: KavlingStatus[] = [
     'sp3k', 'booking', 'open', 'open', 'minat', 'akad', 'sp3k',
-    'open', 'minat', 'open', 'booking', 'sp3k', 'open', 'akad',
+    'open', 'minat', 'open', 'booking', 'sp3k', 'open', 'cash',
   ];
   const statusesD: KavlingStatus[] = [
     'open', 'open', 'booking', 'minat', 'open', 'reject',
@@ -697,7 +702,7 @@ function buildKenaliProject(): SiteplanProject {
   const units: KavlingUnit[] = [];
 
   const statusesA: KavlingStatus[] = [
-    'akad', 'akad', 'sp3k', 'sp3k', 'booking', 'open', 'minat', 'open',
+    'akad', 'cash', 'sp3k', 'sp3k', 'booking', 'open', 'minat', 'open',
     'sp3k', 'akad', 'booking', 'open',
     'akad', 'sp3k', 'booking', 'open',
     'open', 'minat', 'booking', 'open', 'reject', 'sp3k',
@@ -705,7 +710,7 @@ function buildKenaliProject(): SiteplanProject {
 
   const statusesB: KavlingStatus[] = [
     'akad', 'sp3k', 'booking', 'open', 'open',
-    'minat', 'open', 'booking', 'sp3k', 'akad',
+    'minat', 'open', 'booking', 'sp3k', 'cash',
     'open', 'open', 'minat', 'booking', 'open',
     'reject', 'open', 'minat', 'sp3k', 'open',
   ];
@@ -1042,11 +1047,11 @@ function buildPaalMerahProject(): SiteplanProject {
   const units: KavlingUnit[] = [];
 
   const statusesA: KavlingStatus[] = [
-    'akad', 'sp3k', 'booking', 'open', 'open', 'minat', 'sp3k', 'akad',
+    'akad', 'sp3k', 'booking', 'open', 'open', 'minat', 'sp3k', 'cash',
     'open', 'booking', 'minat', 'open', 'open', 'reject', 'booking', 'sp3k',
   ];
   const statusesB: KavlingStatus[] = [
-    'open', 'open', 'minat', 'booking', 'sp3k', 'open', 'akad', 'open',
+    'open', 'open', 'minat', 'booking', 'sp3k', 'open', 'cash', 'open',
     'booking', 'open', 'open', 'minat', 'sp3k', 'open', 'booking', 'open',
   ];
   const statusesC: KavlingStatus[] = [
@@ -1455,7 +1460,7 @@ function buildInitialActivityLog(): ActivityLogEntry[] {
       blockCode: 'A31',
       previousStatus: 'minat',
       newStatus: 'booking',
-      note: 'Menunggu kelengkapan berkas KTP/KK & slip gaji terbaru',
+      note: 'Unit terlock — booking resmi masuk, proses berkas KTP/KK',
       updatedBy: 'Rina Marlina',
       timestamp: makeTimestamp(0.4, 0),
     },
@@ -1487,11 +1492,11 @@ function buildInitialActivityLog(): ActivityLogEntry[] {
       id: 'log-seed-4',
       projectId: 'lip-residence-3-kenali',
       projectName: 'LIP Residence 3 — Kenali',
-      unitId: 'lip-residence-3-kenali-a10',
-      blockCode: 'A10',
-      previousStatus: 'sp3k',
-      newStatus: 'akad',
-      note: 'Akad kredit selesai via notaris rekanan',
+      unitId: 'lip-residence-3-kenali-b10',
+      blockCode: 'B10',
+      previousStatus: 'booking',
+      newStatus: 'cash',
+      note: 'Pembelian cash keras lunas, serah terima kunci terjadwal',
       updatedBy: 'Rina Marlina',
       timestamp: makeTimestamp(3.5, 12),
     },
@@ -1503,7 +1508,7 @@ function buildInitialActivityLog(): ActivityLogEntry[] {
       blockCode: 'B4',
       previousStatus: 'open',
       newStatus: 'booking',
-      note: 'Tanda jadi sudah masuk, kurang slip gaji 3 bulan terakhir',
+      note: 'Unit terlock — booking resmi tercatat, melengkapi berkas',
       updatedBy: 'Dedi Saputra',
       timestamp: makeTimestamp(5.1, 20),
     },

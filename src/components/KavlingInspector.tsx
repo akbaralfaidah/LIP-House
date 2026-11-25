@@ -153,26 +153,26 @@ export function KavlingInspector({
                 </div>
 
                 {activePreviewMeta.isLocked ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-blue-800">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-slate-800">
                     <Lock className="h-3 w-3" />
-                    Lock
+                    Terlock
                   </span>
-                ) : activePreviewMeta.key === 'booking' ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-orange-800">
+                ) : activePreviewMeta.isDashed ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-amber-800">
                     <LockOpen className="h-3 w-3" />
                     Belum Lock
                   </span>
                 ) : null}
               </div>
 
-              {(activePreviewMeta.key === 'booking' || activePreviewMeta.key === 'sp3k') && (
+              {(activePreviewMeta.key === 'minat' ||
+                activePreviewMeta.key === 'booking' ||
+                activePreviewMeta.key === 'sp3k') && (
                 <p
                   className="mt-1 text-[11px] font-medium"
                   style={{ color: activePreviewMeta.softText }}
                 >
-                  {activePreviewMeta.key === 'booking'
-                    ? 'Belum terkunci, menunggu berkas lengkap.'
-                    : 'Berkas disetujui bank — unit terkunci.'}
+                  {activePreviewMeta.description}
                 </p>
               )}
             </div>
@@ -380,10 +380,10 @@ export function KavlingInspector({
           </div>
         </div>
 
-        {/* ADMIN: Compact 3x2 Instant Status Chips + Inline Save Row */}
+        {/* ADMIN: Compact 7-Status Instant Chips + Inline Save Row */}
         {roleMeta.canEdit ? (
           <form onSubmit={handleSubmit} className="mt-2.5 space-y-2">
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-4 gap-1.5">
               {STATUS_ORDER.map((statusKey) => {
                 const meta = STATUS_CONFIG[statusKey];
                 const selected = draftStatus === statusKey;
@@ -392,7 +392,7 @@ export function KavlingInspector({
                     key={statusKey}
                     type="button"
                     onClick={() => setDraftStatus(statusKey)}
-                    className={`flex items-center gap-1.5 rounded-lg border px-2 py-1.5 text-left transition cursor-pointer ${
+                    className={`flex items-center gap-1 rounded-lg border px-1.5 py-1.5 text-left transition cursor-pointer ${
                       selected
                         ? 'border-slate-900 bg-slate-900 text-white'
                         : 'border-slate-200 bg-white text-slate-800'
@@ -407,7 +407,7 @@ export function KavlingInspector({
                           : undefined,
                       }}
                     />
-                    <span className="truncate text-[11px] font-bold">{meta.shortLabel}</span>
+                    <span className="truncate text-[10.5px] font-bold">{meta.shortLabel}</span>
                   </button>
                 );
               })}
@@ -462,9 +462,14 @@ export function KavlingInspector({
         ) : (
           /* READ-ONLY COMPACT FOOTER FOR PIMPINAN & MARKETING */
           <div className="mt-2 space-y-1 text-xs">
+            {activePreviewMeta.key === 'minat' && (
+              <p className="text-[11px] font-medium text-amber-800">
+                Belum terkunci — calon konsumen berminat.
+              </p>
+            )}
             {activePreviewMeta.key === 'booking' && (
               <p className="text-[11px] font-medium text-orange-800">
-                Belum terkunci, menunggu berkas lengkap.
+                Unit sudah terlock (booking resmi).
               </p>
             )}
             {roleMeta.canViewInternalNotes && unit.note && (

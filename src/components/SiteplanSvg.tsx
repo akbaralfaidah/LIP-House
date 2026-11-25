@@ -771,14 +771,15 @@ export const SiteplanSvg = memo(function SiteplanSvg({
           {project.units.map((unit) => {
             const statusMeta = STATUS_CONFIG[unit.status];
             const isDimmed = hasFilter && !activeStatusFilters.includes(unit.status);
-            const isBooking = unit.status === 'booking';
-            const isSp3k = unit.status === 'sp3k';
+            const isDashedUnlocked = Boolean(statusMeta.isDashed);
+            const isLockedUnit = Boolean(statusMeta.isLocked);
 
             const cx = unit.x + unit.width / 2;
             const cy = unit.y + unit.height / 2;
             const minDim = Math.min(unit.width, unit.height);
             const fontSize = minDim <= 37 ? 10 : minDim <= 46 ? 11 : 12.2;
-            const showBookingMicro = isBooking && !isThumb && unit.height >= 54 && unit.width >= 38;
+            const showUnlockedMicro =
+              isDashedUnlocked && !isThumb && unit.height >= 54 && unit.width >= 38;
 
             return (
               <g
@@ -820,9 +821,9 @@ export const SiteplanSvg = memo(function SiteplanSvg({
                   height={unit.height}
                   rx={0.5}
                   fill={statusMeta.color}
-                  stroke={isBooking ? statusMeta.darkStroke : '#FFFFFF'}
-                  strokeWidth={isBooking ? 1.5 : 1.1}
-                  strokeDasharray={isBooking ? '4 2.5' : undefined}
+                  stroke={isDashedUnlocked ? statusMeta.darkStroke : '#FFFFFF'}
+                  strokeWidth={isDashedUnlocked ? 1.5 : 1.1}
+                  strokeDasharray={isDashedUnlocked ? '4 2.5' : undefined}
                 />
 
                 {/* Crisp outer CAD parcel hairline */}
@@ -844,40 +845,42 @@ export const SiteplanSvg = memo(function SiteplanSvg({
                     unit.status === 'minat' ? '#422006' : '#FFFFFF'
                   )}
 
-                {/* Crisp inset dashed border on Booking (Belum Lock) */}
-                {isBooking && !isThumb && (
+                {/* Crisp inset dashed frame on Belum Lock units (Minat) */}
+                {isDashedUnlocked && !isThumb && (
                   <rect
                     x={unit.x + 2.4}
                     y={unit.y + 2.4}
                     width={unit.width - 4.8}
                     height={unit.height - 4.8}
                     fill="none"
-                    stroke="#FFFFFF"
-                    strokeWidth={1.2}
+                    stroke="#6B4F0E"
+                    strokeWidth={1.15}
                     strokeDasharray="3.5 2.2"
-                    opacity={0.94}
+                    opacity={0.85}
                   />
                 )}
 
-                {/* Subtle locked inner trim for SP3K */}
-                {isSp3k && !isThumb && (
-                  <rect
-                    x={unit.x + 2.2}
-                    y={unit.y + 2.2}
-                    width={unit.width - 4.4}
-                    height={unit.height - 4.4}
-                    fill="none"
-                    stroke="#DBEAFE"
-                    strokeWidth={0.9}
-                    opacity={0.7}
-                  />
-                )}
+                {/* Subtle solid inner trim on locked units (Booking / SP3K) */}
+                {isLockedUnit &&
+                  (unit.status === 'booking' || unit.status === 'sp3k') &&
+                  !isThumb && (
+                    <rect
+                      x={unit.x + 2.2}
+                      y={unit.y + 2.2}
+                      width={unit.width - 4.4}
+                      height={unit.height - 4.4}
+                      fill="none"
+                      stroke="#FFFFFF"
+                      strokeWidth={0.85}
+                      opacity={0.55}
+                    />
+                  )}
 
                 {/* Block Code Label */}
                 {!isThumb && (
                   <text
                     x={cx}
-                    y={showBookingMicro ? cy - 1 : cy + 3.8}
+                    y={showUnlockedMicro ? cy - 1 : cy + 3.8}
                     textAnchor="middle"
                     fill={statusMeta.plotTextColor}
                     fontSize={fontSize}
@@ -888,13 +891,13 @@ export const SiteplanSvg = memo(function SiteplanSvg({
                   </text>
                 )}
 
-                {/* Micro BLM LOCK badge on tall Booking plots */}
-                {showBookingMicro && (
+                {/* Micro BLM LOCK badge on tall Belum Lock (Minat) plots */}
+                {showUnlockedMicro && (
                   <text
                     x={cx}
                     y={cy + 10.5}
                     textAnchor="middle"
-                    fill="#FFF7ED"
+                    fill="#3F2D06"
                     fontSize={5.8}
                     fontWeight={700}
                     letterSpacing={0.1}
