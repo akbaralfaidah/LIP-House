@@ -12,6 +12,9 @@ interface PdfSheetPageProps {
   variant: 'preview' | 'print';
 }
 
+export const PDF_PREVIEW_BASE_WIDTH = 980;
+export const PDF_PREVIEW_BASE_HEIGHT = 693; // Exact A4 Landscape 297:210 ratio
+
 export function PdfSheetPage({
   project,
   pageNumber,
@@ -24,10 +27,18 @@ export function PdfSheetPage({
 
   return (
     <article
+      style={
+        isPrint
+          ? undefined
+          : {
+              width: `${PDF_PREVIEW_BASE_WIDTH}px`,
+              height: `${PDF_PREVIEW_BASE_HEIGHT}px`,
+            }
+      }
       className={
         isPrint
           ? 'print-sheet bg-white text-slate-900'
-          : 'mx-auto flex aspect-[297/210] w-full max-w-[1040px] flex-col justify-between overflow-hidden rounded-xl border border-slate-300 bg-white p-5 text-slate-900 shadow-lg sm:p-6'
+          : 'flex flex-col justify-between overflow-hidden rounded-xl border border-slate-300 bg-white p-6 text-slate-900 shadow-lg'
       }
     >
       {/* PDF Page Header */}
@@ -43,15 +54,15 @@ export function PdfSheetPage({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-black tracking-tight text-slate-900 sm:text-base">
+              <span className="text-base font-black tracking-tight text-slate-900">
                 LIP HOUSE
               </span>
               <span className="text-slate-300">|</span>
-              <span className="text-sm font-extrabold text-slate-900 sm:text-base">
+              <span className="text-base font-extrabold text-slate-900">
                 {project.name}
               </span>
             </div>
-            <p className="text-[10px] font-medium text-slate-600">
+            <p className="text-[10.5px] font-medium text-slate-600">
               {project.areaLabel} · {project.blocksSummary} · Total{' '}
               <span className="font-mono font-bold text-slate-900">{stats.total}</span> Kavling
             </p>
@@ -59,7 +70,7 @@ export function PdfSheetPage({
         </div>
 
         <div className="shrink-0 text-right">
-          <div className="inline-flex items-center rounded-md bg-slate-900 px-2.5 py-0.5 font-mono text-[10px] font-bold text-white">
+          <div className="inline-flex items-center rounded-md bg-slate-900 px-2.5 py-0.5 font-mono text-[10.5px] font-bold text-white">
             Halaman {pageNumber} dari {totalPages}
           </div>
           <p className="mt-1 font-mono text-[10px] font-medium text-slate-600">
@@ -69,23 +80,25 @@ export function PdfSheetPage({
       </header>
 
       {/* Center Stage: Pure Vector Full-Color SVG Siteplan */}
-      <div className="my-2 flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white p-1.5">
+      <div
+        data-pdf-svg-host={variant === 'preview' ? project.id : undefined}
+        className="my-2 flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white p-1.5"
+      >
         <SiteplanSvg
           project={project}
           mode="print"
-          className="max-h-full w-full object-contain"
+          className="h-full w-full object-contain"
         />
       </div>
 
       {/* Bottom Strip: 6-Color Legend + Recap Table */}
       <footer className="grid grid-cols-12 items-stretch gap-3 border-t border-slate-300 pt-2.5">
-        {/* 6-Color Legend */}
         <div className="col-span-5 flex flex-col justify-between rounded-lg border border-slate-200 bg-slate-50/70 p-2.5">
           <div className="mb-1.5 flex items-center justify-between">
             <span className="text-[9.5px] font-extrabold uppercase tracking-wider text-slate-700">
               Legenda 6 Status Kavling
             </span>
-            <span className="text-[8.5px] font-semibold text-orange-700">
+            <span className="text-[8.5px] font-semibold text-orange-800">
               Garis Putus = Belum Lock
             </span>
           </div>
@@ -121,7 +134,6 @@ export function PdfSheetPage({
           </div>
         </div>
 
-        {/* Unit Recap Table (Count & Percentage) */}
         <div className="col-span-7 overflow-hidden rounded-lg border border-slate-200">
           <table className="w-full border-collapse text-[9.5px]">
             <thead>
