@@ -27,3 +27,6 @@ Thumbs.db
 .vercel/
 .playwright-mcp/
 *.tsbuildinfo
+
+.vercel
+.env*

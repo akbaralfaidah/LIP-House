@@ -1,5 +1,7 @@
 # LIP House — Sistem Live Siteplan Digital (Interactive Mockup)
 
+**Live Demo:** https://lip-house-siteplan.vercel.app
+
 Prototipe web interaktif (Frontend-only) untuk presentasi sistem **Live Siteplan Digital LIP House**, menggantikan siteplan tempel di dinding dengan peta vektor SVG real-time yang dapat diekspor ke **1 file PDF penuh (4 halaman A4 Landscape, tanpa ZIP)**.
 
 ## Fitur Utama
